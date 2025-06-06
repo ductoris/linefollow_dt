@@ -1,21 +1,29 @@
-#define leftIR   A0
-#define centerIR A1
-#define rightIR  A2
-#define ENA  6
-#define IN1  8
+// Khai báo chân cảm biến hồng ngoại (IR)
+#define leftIR   A0   
+#define centerIR A1   
+#define rightIR  A2   
+
+// Khai báo chân điều khiển động cơ
+#define ENA  6        // PWM bên phải
+#define IN1  8       
 #define IN2  7
-#define IN3  10
+#define IN3  10       
 #define IN4  9
-#define ENB  11
-float Kp = 3;
-float Ki = 0;
-float Kd = 45;
+#define ENB  11       // PWM bên trái
+
+// Thông số PID
+float Kp = 3, Kd = 45, Ki = 0;       
+
+// Tốc độ cơ sở của mỗi bánh xe
 int baseSpeedRight = 175;
 int baseSpeedLeft = 165;
 int maxSpeed = 255;
+
+// Biến PID
 float error = 0, lastError = 0, integral = 0;
 unsigned long lastTime = 0;
-int weights[3] = {-35, 0, 35};
+
+
 void setup() {
   Serial.begin(9600);
   pinMode(leftIR, INPUT);
@@ -31,44 +39,51 @@ void setup() {
 }
 
 void loop() {
-  errCal();
-  PIDControl();
-  delay(20);
+  errCal();       
+  PIDControl();  
+  delay(20);      
 }
-
 void errCal() {
-  int LS[3] = {0, 0, 0};
-  if (digitalRead(leftIR) == HIGH) LS[0] = 1;
+  int LS[3] = {0, 0, 0};  
+  int weights[3] = {-35, 0, 35}; // Trọng số sai số
+  if (digitalRead(leftIR) == HIGH)   LS[0] = 1;
   if (digitalRead(centerIR) == HIGH) LS[1] = 1;
-  if (digitalRead(rightIR) == HIGH) LS[2] = 1;
+  if (digitalRead(rightIR) == HIGH)  LS[2] = 1;
 
-  int totalWeight = 0;
-  int count = 0;
+  int total = 0;  
+  int count = 0;        
   for (int i = 0; i < 3; i++) {
-    totalWeight += LS[i] * weights[i];
+    total += LS[i] * weights[i];
     count += LS[i];
   }
-  if (count == 0) {
-    error = lastError;  // hoặc giữ nguyên lỗi cũ
+  if (count == 0 ) {
+    error = lastError; // giữ nguyên lối cũ
     return;
   }
-  error = (float)totalWeight / count;
+  error = (float)total / count;  // Sai số trung bình có trọng số
 }
 
+// Hàm điều khiển tốc độ động cơ dựa vào PID
 void PIDControl() {
   unsigned long currentTime = millis();
-  float dt = (currentTime - lastTime) / 1000.0;
+  float dt = (currentTime - lastTime) / 1000.0; 
   lastTime = currentTime;
-  integral += error;
-  float derivative = (error - lastError) / dt;
-  lastError = error;
-  float output = Kp * error + Ki * integral + Kd * derivative;
-  int leftSpeed = constrain(baseSpeedLeft + output, -maxSpeed, maxSpeed);
-  int rightSpeed = constrain(baseSpeedRight - output, -maxSpeed, maxSpeed);
-  setMotor(ENA, IN1, IN2, rightSpeed);
-  setMotor(ENB, IN3, IN4, leftSpeed);
-}
 
+  integral += error;
+  float derivative = (error - lastError) / dt;  // Đạo hàm sai số
+  lastError = error;
+
+  // Tính đầu ra của bộ điều khiển PID
+  float output = Kp * error + Ki * integral + Kd * derivative;
+
+  // Điều chỉnh tốc độ từng bánh xe
+  int leftSpeed  = constrain(baseSpeedLeft + output,  -maxSpeed, maxSpeed);
+  int rightSpeed = constrain(baseSpeedRight - output, -maxSpeed, maxSpeed);
+
+  // Cập nhật tốc độ cho động cơ
+  setMotor(ENA, IN1, IN2, rightSpeed); 
+  setMotor(ENB, IN3, IN4, leftSpeed);  
+}
 void setMotor(int pwmPin, int in1, int in2, int speed) {
   if (speed >= 0) {
     digitalWrite(in1, HIGH);
